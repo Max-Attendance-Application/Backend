@@ -7,7 +7,8 @@ import SequelizeStore from "connect-session-sequelize";
 import UserRoute from "./routes/UserRoute.js";
 import AbsenRoute from "./routes/AbsenRoute.js";
 import AuthRoute from "./routes/AuthRoute.js";
-import multer from 'multer';
+import { uploadSingle } from "./middleware/uploadMiddleware.js";
+import { createAbsenTapin } from "./controllers/absen.js";
 
 dotenv.config();
 
@@ -19,14 +20,19 @@ const store = new sessionStore({
     db: db,
     expiration: 120 * 60 * 1000,
     checkExpirationInterval: 120 * 60 * 1000
-})
+});
 
-const storage = multer.memoryStorage(); // Menggunakan memory storage untuk menyimpan file di buffer
-const upload = multer({ storage: storage });
-
-/* (async () => {
-    await db.sync();
-})();   */
+/* // IIFE untuk memeriksa koneksi database dan sinkronisasi model
+(async function() {
+    try {
+        await db.authenticate();  // Cek koneksi ke database
+        console.log('Database connected...');
+        await db.sync();  // Sinkronisasi model dengan database
+        console.log('Database synced...');
+    } catch (error) {
+        console.error('Unable to connect to the database:', error);
+    }
+})(); */
 
 app.use(session({
     secret: process.env.SESS_SECRET,
@@ -54,9 +60,9 @@ app.use(AuthRoute);
 /*  store.sync();  */
 
 // Gunakan multer sebagai middleware untuk rute yang memerlukan unggahan file
-app.post('/tapin', upload.single('photo'), (req, res) => {
+app.post('/tapin', uploadSingle, (req, res) => {
     createAbsenTapin(req, res);
-});
+  });
 
 app.listen(process.env.APP_PORT, ()=> {
     console.log('Server up and running...');
