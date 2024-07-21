@@ -4,21 +4,12 @@ import UserModel from "../models/UserModel.js";
 
 export const getaAbsen = async (req, res) => {
     try {
-        let response;
-        if(req.role === 'admin'){
+        let response;{
             response = await AbsenModel.findAll({
-                include:[{
-                    model:UserModel
-                }]
-            });
-        }else{
-            response = await AbsenModel.findAll({
-                where:{
-                    userId: req.userId
-                },
-                include:[{
-                    model:UserModel
-                }]
+                include: [{
+            model: UserModel,
+            attributes: { exclude: ['password'] } // Exclude the password field
+        }]
             });
         }
         res.status(200).json(response);
@@ -28,8 +19,89 @@ export const getaAbsen = async (req, res) => {
 }
 
 export const getAbsenbyId = async (req, res) => {
+    try {
+        const absenId = parseInt(req.params.id, 10); // Retrieve and parse the ID from the request parameters
 
-}
+        if (isNaN(absenId)) {
+            return res.status(400).json({
+                message: 'Invalid ID format'
+            });
+        }
+
+        const absen = await AbsenModel.findOne({
+            where: {
+                id: absenId
+            },
+            include: [{
+                model: UserModel,
+                attributes: { exclude: ['password'] } // Exclude the password field
+            }]
+        });
+
+        if (!absen) {
+            return res.status(404).json({
+                message: 'Absen record not found'
+            });
+        }
+
+        res.status(200).json(absen);
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error fetching absen record',
+            error: error.message
+        });
+    }
+};
+
+export const getAbsenByName = async (req, res) => {
+    try {
+        const { name } = req.params; // Retrieve the user name from request parameters
+
+        if (!name) {
+            return res.status(400).json({
+                message: 'User name is required'
+            });
+        }
+
+        // Find the user by name
+        const user = await UserModel.findOne({
+            where: {
+                name: name
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({
+                message: 'User not found'
+            });
+        }
+
+        // Find the absen records for the found user
+        const absens = await AbsenModel.findAll({
+            where: {
+                userId: user.id
+            },
+            include: [{
+                model: UserModel,
+                attributes: { exclude: ['password'] } // Exclude the password field
+            }]
+        });
+
+        if (absens.length === 0) {
+            return res.status(404).json({
+                message: 'No absen records found for this user'
+            });
+        }
+
+        res.status(200).json(absens);
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error fetching absen records',
+            error: error.message
+        });
+    }
+};
+
 
 export const createAbsenTapin = async (req, res) => {
     const photo = req.file; // Menggunakan multer untuk upload file
