@@ -82,6 +82,10 @@ const Users = db.define('users', {
             }
         }
     },
+    urlprofile:{
+        type: Sequelize.DataTypes.STRING,
+        allowNull: true,
+    }
 
 }, {
     freezeTableName: true

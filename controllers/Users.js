@@ -2,11 +2,15 @@ import User from "../models/UserModel.js";
 import nodemailer from 'nodemailer';
 import jwt from 'jsonwebtoken';
 import argon2 from "argon2";
+import UserModel from "../models/UserModel.js";
+import cloudinary from 'cloudinary';
+import { uploadSingleProfileimg } from '../middleware/uploadMiddleware.js';
+import multer from "multer";
 
 export const getUser =  async (req, res) => {
     try {
         const response = await User.findAll(
-            {attributes: ["uuid", "name", "email", "username", "gender", "division", "position", "role"]
+            {attributes: ["id", "uuid", "name", "email", "username", "gender", "division", "position", "role"]
     });
         res.status(200).json(response);
     } catch (error) {
@@ -17,17 +21,27 @@ export const getUser =  async (req, res) => {
 
 export const getUserById = async (req, res) => {
     try {
-        const response = await User.findOne({
-            attributes: ["uuid", "name", "email", "username", "gender", "division", "position", "role"],
-            where: {
-                uuid: req.params.id
-            }
-        });
-        res.status(200).json(response);
+      // Fetch the user by UUID from the request parameters
+      const user = await User.findOne({
+        attributes: ["id", "uuid", "name", "email", "username", "gender", "division", "position", "role"],
+        where: {
+          id: req.params.id
+        }
+      });
+  
+      // Check if the user exists
+      if (!user) {
+        return res.status(404).json({ msg: 'User not found' });
+      }
+  
+      // Return the user details
+      res.status(200).json(user);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+      // Handle any errors that occur during the database query
+      res.status(500).json({ error: error.message });
     }
-}
+  };
+
 
 export const createUser = async (req, res) => {
     const {name, email, password, confPassword, username, gender, division, position, role} = req.body;
@@ -38,10 +52,17 @@ export const createUser = async (req, res) => {
     // Validasi bahwa password dan confPassword cocok
     if (password !== confPassword) {return res.status(400).json({ msg: "Password dan konfirmasi password tidak cocok" }); }
     // Periksa apakah username sudah ada
-    const existingUser = await User.findOne({ where: { username } });
-    if (existingUser) {
-        return res.status(400).json({ msg: "Username sudah ada, silakan pilih username lain" });
-    }
+     // Check if email already exists
+     const existingEmail = await User.findOne({ where: { email } });
+     if (existingEmail) {
+         return res.status(400).json({ msg: "Email already exists, please choose another" });
+     }
+ 
+     // Check if username already exists
+     const existingUsername = await User.findOne({ where: { username } });
+     if (existingUsername) {
+         return res.status(400).json({ msg: "Username already exists, please choose another" });
+     }
     const hashPassword = await argon2.hash(password);
        try {
         await User.create({
@@ -54,11 +75,12 @@ export const createUser = async (req, res) => {
             position: position,
             role: role
         });
+        
         res.status(201).json({msg: "Registration successful"});
        } catch (error) {
             res.status(400).json({ error: error.message });
        }
-       
+      
 
 }
 
@@ -66,13 +88,13 @@ export const updateUser = async(req, res) => {
     try {
         const user = await User.findOne({
             where: {
-                uuid: req.params.id
+                id: req.params.id
             }
         });
 
         if (!user) return res.status(404).json({ msg: "User not found" });
 
-        const { name, email, password, confPassword, username, gender, division, position } = req.body;
+        const { name, email, password, confPassword, username, gender, division, position, role } = req.body;
 
         // Log untuk debugging
         console.log("Request Body:", req.body);
@@ -84,6 +106,13 @@ export const updateUser = async(req, res) => {
         const existingUser = await User.findOne({ where: { username } });
         if (existingUser) {
             return res.status(400).json({ msg: "Username sudah ada, silakan pilih username lain" });
+        }
+    }
+
+    if (email && email !== user.email) {
+        const existingUser = await User.findOne({ where: { email } });
+        if (existingUser) {
+            return res.status(400).json({ msg: "Email sudah ada, silakan pilih email lain" });
         }
     }
 
@@ -104,7 +133,8 @@ export const updateUser = async(req, res) => {
             username: username,
             gender: gender,
             division: division,
-            position: position
+            position: position,
+            role: role
         }, {
             where: {
                 id: user.id
@@ -117,6 +147,59 @@ export const updateUser = async(req, res) => {
         res.status(400).json({ error: error.message });
     }
 };
+
+export const uploadProfileImage = async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ msg: 'No file uploaded' });
+      }
+  
+      const userId = req.userId; // Assuming you get the user ID from the request (e.g., from a verified token)
+      const newImageUrl = req.file.path; // Cloudinary URL
+  
+      const user = await UserModel.findOne({
+        where: { id: userId }
+      });
+  
+      if (!user) {
+        return res.status(404).json({ msg: 'User not found' });
+      }
+  
+      // Delete old profile image
+      if (user.urlprofile) {
+        const oldImagePublicId = user.urlprofile.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(oldImagePublicId);
+      }
+  
+      // Upload new image to Cloudinary
+      const newImagePublicId = `profile_photos/${userId}_${Date.now()}`;
+      const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+        public_id: newImagePublicId, // Set the public ID
+      });
+  
+      // Update the user's profile image URL in the database
+      user.urlprofile = uploadResult.secure_url; // Use the URL from the upload result
+      await user.save();
+  
+      res.status(200).json({ msg: 'Profile image uploaded successfully', url: user.urlprofile });
+    } catch (error) {
+      res.status(500).json({ msg: error.message });
+    }
+  };
+  
+  // Middleware to handle file upload errors
+  export const handleFileUpload = (req, res, next) => {
+    uploadSingleProfileimg(req, res, (err) => {
+      if (err) {
+        if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ msg: 'File size exceeds the 5MB limit' });
+        } else if (err) {
+          return res.status(400).json({ msg: err.message });
+        }
+      }
+      next();
+    });
+  };
 
 export const deleteUser = async (req, res) => {
     const user = await User.findOne({
