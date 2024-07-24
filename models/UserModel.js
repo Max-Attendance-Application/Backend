@@ -85,7 +85,15 @@ const Users = db.define('users', {
     urlprofile:{
         type: Sequelize.DataTypes.STRING,
         allowNull: true,
-    }
+    },
+    resetPasswordToken: {
+        type: Sequelize.DataTypes.STRING,
+        allowNull: true,
+    },
+    resetPasswordExpires: {
+        type: Sequelize.DataTypes.DATE,
+        allowNull: true,
+    },
 
 }, {
     freezeTableName: true

@@ -1,11 +1,12 @@
 import User from "../models/UserModel.js";
 import nodemailer from 'nodemailer';
-import jwt from 'jsonwebtoken';
+import { Op } from "sequelize";
 import argon2 from "argon2";
 import UserModel from "../models/UserModel.js";
 import cloudinary from 'cloudinary';
 import { uploadSingleProfileimg } from '../middleware/uploadMiddleware.js';
 import multer from "multer";
+import crypto from 'crypto';
 
 export const getUser =  async (req, res) => {
     try {
@@ -201,95 +202,150 @@ export const uploadProfileImage = async (req, res) => {
     });
   };
 
-export const deleteUser = async (req, res) => {
+  export const deleteUserById = async (req, res) => {
     const user = await User.findOne({
         where: {
-            uuid: req.params.id
+            id: req.params.id
         }
-    });
-    if(!user) return res.status(404).json({msg: "User not found"});
-    try {
-        await User.destroy({
-           where:{
-            id: user.id
-           }
-        },{
-            where:{
-                id: user.id
-            }
-        });
-        res.status(200).json({msg: "User Deleted"});
-       } catch (error) {
-            res.status(400).json({ error: error.message });
-       }
-
-}
-
-
-export const forgotPassword = async (req, res) => {
-    const { email } = req.body;
-
-    try {
         
+    })
+    if (!user) return res.status(404).json({ msg: 'User not found' });
 
-        const user = await User.findOne({ where: { email } });
-        if (!user) return res.status(404).json({ msg: "User not found" });
+    await User.destroy({
+      where: {
+        id: req.params.id
+      }
+    })
+    res.status(200).json({ msg: 'User deleted successfully' });
+  } 
 
-        const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-        const resetLink = `http://localhost:5000/reset-password.html?token=${token}`;
-
-        const transporter = nodemailer.createTransport({
-            host: process.env.EMAIL_HOST,
-            port: process.env.EMAIL_PORT,
-            secure: true,
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            },
-            debug: true, // Enable debug output
-            logger: true // Enable logger
-        });
-
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: user.email,
-            subject: 'Password Reset',
-            text: `Click the link to reset your password: ${resetLink}`
-        };
-
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.error('Detailed error sending email:', error);
-                return res.status(500).json({ msg: 'Error sending email', error: error.message });
-            }
-            res.status(200).json({ msg: 'Reset password link sent to your email' });
-        });
-    } catch (error) {
-        res.status(500).json({ msg: error.message });
-    }
+// Generate a token and save it with an expiration time of 1 minute
+const generatePasswordResetToken = async (user) => {
+  const token = crypto.randomBytes(20).toString('hex');
+  user.resetPasswordToken = token;
+  user.resetPasswordExpires = Date.now() + 60000; // 1 minute
+  await user.save();
+  return token;
 };
 
+// Function to clean up expired tokens
+const cleanUpExpiredTokens = async () => {
+  const now = Date.now();
+
+  await User.update(
+    {
+      resetPasswordToken: null,
+      resetPasswordExpires: null
+    },
+    {
+      where: {
+        resetPasswordExpires: { [Op.lt]: now },
+        resetPasswordToken: { [Op.ne]: null }
+      }
+    }
+  );
+};
+// Forgot password function
+export const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+      // Check if the user exists
+      const user = await User.findOne({ where: { email } });
+      if (!user) {
+          return res.status(404).json({ msg: 'User not found' });
+      }
+
+      // Clean up expired tokens
+      await cleanUpExpiredTokens();
+
+      // Check if the user has an existing token and if it is still valid
+      if (user.resetPasswordToken && user.resetPasswordExpires > Date.now()) {
+          return res.status(400).json({ msg: 'A password reset token has already been sent and is still valid.' });
+      }
+
+      // Generate a new token and set expiration
+      const token = await generatePasswordResetToken(user);
+
+      // Send the email with the token
+      const resetLink = `http://localhost:5000/reset-password.html?token=${token}`;
+      const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: user.email,
+          subject: 'Password Reset',
+          html: `
+              <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
+                <h2 style="color: #333;">Password Reset Request</h2>
+                <p style="font-size: 16px; color: #555;">
+                    You have requested to reset your password. Please use the following token to reset your password:
+                </p>
+                <p style="font-size: 20px; font-weight: bold; color: #000;">${token}</p>
+                <p style="font-size: 16px; color: #555;">
+                    Alternatively, you can click the link below to reset your password:
+                </p>
+                <a href="LINK RESET PW NYA, Berisi 3 field Token PW dan Confirm PW" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: #fff; text-decoration: none; border-radius: 5px;">
+                    Reset Password
+                </a>
+                <p style="font-size: 16px; color: #555;">
+                    If you did not request this, please ignore this email.
+                </p>
+                <p style="font-size: 14px; color: #999;">
+                    Regards,<br/>Max Samasta
+                </p>
+            </div>
+          `
+      };
+
+      const transporter = nodemailer.createTransport({
+          host: process.env.EMAIL_HOST,
+          port: process.env.EMAIL_PORT,
+          secure: true,
+          auth: {
+              user: process.env.EMAIL_USER,
+              pass: process.env.EMAIL_PASS
+          }
+      });
+
+      transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+              console.error('Detailed error sending email:', error);
+              return res.status(500).json({ msg: 'Error sending email', error: error.message });
+          }
+          res.status(200).json({ msg: 'Password reset link sent to your email' });
+      });
+
+  } catch (error) {
+      res.status(500).json({ msg: error.message });
+  }
+};
+
+// Reset Password function
 export const resetPassword = async (req, res) => {
-    const { password, confPassword } = req.body;
-    const token = req.params.token;
+  const { token, newPassword, confirmPassword } = req.body;
 
-    if (password !== confPassword) {
-        return res.status(400).json({ msg: "Passwords do not match" });
-    }
+  if (newPassword !== confirmPassword) {
+      return res.status(400).json({ msg: 'Passwords do not match' });
+  }
 
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findOne({ where: { email: decoded.email } });
+  try {
+      const user = await User.findOne({
+          where: {
+              resetPasswordToken: token,
+              resetPasswordExpires: { [Op.gt]: Date.now() }
+          }
+      });
 
-        if (!user) {
-            return res.status(404).json({ msg: "User not found" });
-        }
+      if (!user) {
+          return res.status(400).json({ msg: 'Password reset token is invalid or has expired' });
+      }
 
-        const hashPassword = await argon2.hash(password);
-        await User.update({ password: hashPassword }, { where: { email: decoded.email } });
+      user.password = await argon2.hash(newPassword);
+      user.resetPasswordToken = null;
+      user.resetPasswordExpires = null;
+      await user.save();
 
-        res.status(200).json({ msg: "Password has been reset successfully" });
-    } catch (error) {
-        res.status(500).json({ msg: error.message });
-    }
+      res.status(200).json({ msg: 'Password has been reset successfully' });
+  } catch (error) {
+      res.status(500).json({ msg: error.message });
+  }
 };

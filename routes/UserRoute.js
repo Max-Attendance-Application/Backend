@@ -6,7 +6,7 @@ import {
     updateUser,
     uploadProfileImage,
     handleFileUpload,
-    deleteUser,
+    deleteUserById,
     forgotPassword,
     resetPassword
 } from "../controllers/Users.js";
@@ -20,9 +20,9 @@ router.get('/users/:id', verifyUser, adminOnly, getUserById);
 router.post('/users', createUser);
 router.post('/uploadProfileImage', verifyUser, handleFileUpload,uploadProfileImage, uploadSingleProfileimg,  );
 router.patch('/users/:id', verifyUser, updateUser);
-router.delete('/users/:id', verifyUser, adminOnly, deleteUser);
+router.delete('/users/:id', verifyUser, adminOnly, deleteUserById);
 
 router.post('/auth/forgot-password', forgotPassword);
-router.post('/auth/reset-password/:token', resetPassword); // This route requires user to be logged in
+router.post('/auth/reset-password/', resetPassword); // This route requires user to be logged in
 
 export default router;
