@@ -45,6 +45,26 @@ const AbsenModel = db.define('AbsenModel', {
             notEmpty: true
         }
     },
+    latitudeTapIn: {
+        type: DataTypes.NUMERIC, // Or use DOUBLE depending on precision needs
+        allowNull: true, // Allow null in case not provided
+    },
+    longitudeTapIn: {
+        type: DataTypes.NUMERIC, // Or use DOUBLE depending on precision needs
+        allowNull: true, // Allow null in case not provided
+    },
+    latitudeTapOut: {
+        type: DataTypes.NUMERIC, // Or use DOUBLE depending on precision needs
+        allowNull: true, // Allow null in case not provided
+    },
+    longitudeTapOut: {
+        type: DataTypes.NUMERIC, // Or use DOUBLE depending on precision needs
+        allowNull: true, // Allow null in case not provided
+    },
+    
+    
+    
+    
 }, {
     freezeTableName: true
 });

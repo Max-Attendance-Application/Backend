@@ -24,10 +24,9 @@ const storagev2 = new CloudinaryStorage({
   params: {
     folder: 'profile_photos', // Nama folder di Cloudinary 
     public_id: (req, file) => {
-      const userId = req.userId;
       const uuid = uuidv4();
       const timestamp = moment().format('YYYY-MM-DD_HH-mm-ss'); // Ensure this is available in the request
-      const fileName = `${userId}_${uuid}_${timestamp}`; // Include userId in the public ID
+      const fileName = `${uuid}_${timestamp}`; // Include userId in the public ID
       return fileName;
     },
   },

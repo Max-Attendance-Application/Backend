@@ -85,68 +85,132 @@ export const createUser = async (req, res) => {
 
 }
 
-export const updateUser = async(req, res) => {
-    try {
-        const user = await User.findOne({
-            where: {
-                id: req.params.id
-            }
-        });
+export const createUserv2 = async (req, res, next) => {
+  const { name, email, password, confPassword, username, gender, division, position, role } = req.body;
 
-        if (!user) return res.status(404).json({ msg: "User not found" });
+  if (password !== confPassword) {
+    return res.status(400).json({ msg: "Password dan konfirmasi password tidak cocok" });
+  }
 
-        const { name, email, password, confPassword, username, gender, division, position, role } = req.body;
-
-        // Log untuk debugging
-        console.log("Request Body:", req.body);
-        console.log("Password:", password);
-        console.log("ConfPassword:", confPassword);
-
-        // Periksa apakah username baru sudah ada kecuali milik pengguna ini
-    if (username && username !== user.username) {
-        const existingUser = await User.findOne({ where: { username } });
-        if (existingUser) {
-            return res.status(400).json({ msg: "Username sudah ada, silakan pilih username lain" });
-        }
+  try {
+    // Check if email already exists
+    const existingEmail = await User.findOne({ where: { email } });
+    if (existingEmail) {
+      return res.status(400).json({ msg: "Email already exists, please choose another" });
     }
 
-    if (email && email !== user.email) {
-        const existingUser = await User.findOne({ where: { email } });
-        if (existingUser) {
-            return res.status(400).json({ msg: "Email sudah ada, silakan pilih email lain" });
-        }
+    // Check if username already exists
+    const existingUsername = await User.findOne({ where: { username } });
+    if (existingUsername) {
+      return res.status(400).json({ msg: "Username already exists, please choose another" });
     }
 
-        let hashPassword;
-        if (password === "" || password === null || password === undefined) {
-            hashPassword = user.password;
-        } else {
-            if (password !== confPassword) {
-                return res.status(400).json({ msg: "Password dan konfirmasi password tidak cocok" });
-            }
-            hashPassword = await argon2.hash(password);
-        }
+    const hashPassword = await argon2.hash(password);
 
-        await User.update({
-            name: name,
-            email: email,
-            password: hashPassword,
-            username: username,
-            gender: gender,
-            division: division,
-            position: position,
-            role: role
-        }, {
-            where: {
-                id: user.id
-            }
-        });
+    req.user = { // Passing user data to the next middleware (uploadProfileImage)
+      name: name,
+      email: email,
+      password: hashPassword,
+      username: username,
+      gender: gender,
+      division: division,
+      position: position,
+      role: role
+    };
 
-        res.status(200).json({ msg: "User Updated" });
-    } catch (error) {
-        console.error(error); // Log error untuk debugging
-        res.status(400).json({ error: error.message });
-    }
+    next();
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+
+export const uploadProfileImagev2 = async (req, res) => {
+  const urlprofile = req.file ? req.file.path : null;
+
+  try {
+    await User.create({
+      ...req.user, // Spread user data passed from createUserv2
+      urlprofile: urlprofile
+    });
+
+    res.status(201).json({ msg: "Registration successful" });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+// Controller function to update user
+export const updateUser = async (req, res) => {
+  try {
+      const userId = req.params.id;
+      const user = await User.findOne({
+          where: {
+              id: userId
+          }
+      });
+
+      if (!user) return res.status(404).json({ msg: "User not found" });
+
+      const { name, email, password, confPassword, username, gender, division, position, role } = req.body;
+
+      // Log for debugging
+      console.log("Request Body:", req.body);
+      console.log("Password:", password);
+      console.log("ConfPassword:", confPassword);
+
+      // Check if username is new and unique
+      if (username && username !== user.username) {
+          const existingUser = await User.findOne({ where: { username } });
+          if (existingUser) {
+              return res.status(400).json({ msg: "Username already exists, please choose another" });
+          }
+      }
+
+      // Check if email is new and unique
+      if (email && email !== user.email) {
+          const existingEmail = await User.findOne({ where: { email } });
+          if (existingEmail) {
+              return res.status(400).json({ msg: "Email already exists, please choose another" });
+          }
+      }
+
+      // Handle password hashing
+      let hashPassword;
+      if (password === "" || password === null || password === undefined) {
+          hashPassword = user.password;
+      } else {
+          if (password !== confPassword) {
+              return res.status(400).json({ msg: "Password and confirmation do not match" });
+          }
+          hashPassword = await argon2.hash(password);
+      }
+
+      // Handle file upload
+      const urlprofile = req.file ? req.file.path : user.urlprofile; // Preserve existing profile photo if none is provided
+
+      // Update user record
+      await User.update({
+          name: name,
+          email: email,
+          password: hashPassword,
+          username: username,
+          gender: gender,
+          division: division,
+          position: position,
+          role: role,
+          urlprofile: urlprofile // Update profile photo URL
+      }, {
+          where: {
+              id: user.id
+          }
+      });
+
+      res.status(200).json({ msg: "User updated successfully" });
+  } catch (error) {
+      console.error(error); // Log error for debugging
+      res.status(400).json({ error: error.message });
+  }
 };
 
 export const uploadProfileImage = async (req, res) => {
@@ -187,6 +251,7 @@ export const uploadProfileImage = async (req, res) => {
       res.status(500).json({ msg: error.message });
     }
   };
+ 
   
   // Middleware to handle file upload errors
   export const handleFileUpload = (req, res, next) => {
@@ -349,3 +414,4 @@ export const resetPassword = async (req, res) => {
       res.status(500).json({ msg: error.message });
   }
 };
+

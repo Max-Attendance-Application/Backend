@@ -1,6 +1,7 @@
 import express from 'express';
 import {
     getaAbsen,
+    getAbsens,
     getAbsenbyId,
     getAbsenByName,
     createAbsenTapin,
@@ -14,6 +15,7 @@ import { verifyUser, adminOnly } from "../middleware/AuthUser.js";
 const router = express.Router();
 
 router.get('/absen', verifyUser,adminOnly, getaAbsen);
+router.get('/absens', verifyUser,adminOnly,getAbsens); //fix
 router.get('/absen/:id', verifyUser, adminOnly, getAbsenbyId);
 router.get('/absenbyname/:name', verifyUser, adminOnly, getAbsenByName);
 router.post('/absen/in', verifyUser, uploadSingle, createAbsenTapin);

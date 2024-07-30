@@ -3,8 +3,10 @@ import {
     getUser,
     getUserById,
     createUser,
+    createUserv2, //fix
     updateUser,
     uploadProfileImage,
+    uploadProfileImagev2, //fix
     handleFileUpload,
     deleteUserById,
     forgotPassword,
@@ -17,9 +19,10 @@ const router = express.Router();
 
 router.get('/users', verifyUser, adminOnly, getUser);
 router.get('/users/:id', verifyUser, adminOnly, getUserById);
-router.post('/users', createUser);
-router.post('/uploadProfileImage', verifyUser, handleFileUpload,uploadProfileImage, uploadSingleProfileimg,  );
-router.patch('/users/:id', verifyUser, updateUser);
+router.post('/users', createUser); //no Photo dan TIDAK DI PAKAI RUTENYA!
+router.post('/createusersv2', handleFileUpload, createUserv2, uploadProfileImagev2); //withphoto DIPAKAI RUTENYA
+router.post('/uploadProfileImage', verifyUser, handleFileUpload,uploadProfileImage, uploadSingleProfileimg,  ); //INI BUAT EMPLOYEE UPDATE FOTONYA AJA
+router.patch('/users/:id', verifyUser, handleFileUpload, updateUser, uploadProfileImagev2);
 router.delete('/users/:id', verifyUser, adminOnly, deleteUserById);
 
 router.post('/auth/forgot-password', forgotPassword);

@@ -1,6 +1,8 @@
 import moment from 'moment-timezone';
 import AbsenModel from "../models/AbsenModel.js";
 import UserModel from "../models/UserModel.js";
+import { Op } from "sequelize";
+import { calculateDistance } from '../utils/location.js';
 
 export const getaAbsen = async (req, res) => {
     try {
@@ -102,83 +104,244 @@ export const getAbsenByName = async (req, res) => {
     }
 };
 
+export const getAbsens = async (req, res) => {
+    try {
+        const { fullname, id, from, to } = req.query;
+        const whereClause = {};
+        const userWhereClause = {};
+
+        // If fullname is provided, add it to the user where clause
+        if (fullname) {
+            userWhereClause.name = fullname;
+        }
+
+        // If id is provided, add it to the user where clause
+        if (id) {
+            userWhereClause.id = parseInt(id, 10);
+        }
+
+        // If from and to dates are provided, add them to the where clause
+        if (from && to) {
+            const fromDate = moment(from).startOf('day').toDate();
+            const toDate = moment(to).endOf('day').toDate();
+            whereClause.tapin = {
+                [Op.between]: [fromDate, toDate]
+            };
+        } else if (from) {
+            const fromDate = moment(from).startOf('day').toDate();
+            whereClause.tapin = {
+                [Op.gte]: fromDate
+            };
+        } else if (to) {
+            const toDate = moment(to).endOf('day').toDate();
+            whereClause.tapin = {
+                [Op.lte]: toDate
+            };
+        }
+
+        let absens;
+
+        if (fullname || id) {
+            const user = await UserModel.findOne({
+                where: userWhereClause
+            });
+
+            if (!user) {
+                return res.status(404).json({
+                    message: 'User not found'
+                });
+            }
+
+            whereClause.userId = user.id;
+            absens = await AbsenModel.findAll({
+                where: whereClause,
+                include: [{
+                    model: UserModel,
+                    attributes: { exclude: ['password'] }
+                }]
+            });
+        } else {
+            absens = await AbsenModel.findAll({
+                where: whereClause,
+                include: [{
+                    model: UserModel,
+                    attributes: { exclude: ['password'] }
+                }]
+            });
+        }
+
+        if (absens.length === 0) {
+            return res.status(404).json({
+                message: 'No absen records found'
+            });
+        }
+
+        res.status(200).json(absens);
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error fetching absen records',
+            error: error.message
+        });
+    }
+};
+
+
+const VALID_LOCATION = {
+    latitude: -6.577023245193599, // Example latitude
+    longitude: 106.81070304025452, // Example longitude
+    radius: 9 // Radius in meters
+};
+
+// Define a function to check if the location is within the allowed radius
+const isWithinLocation = (latitude, longitude) => {
+    const distance = calculateDistance(
+        VALID_LOCATION.latitude,
+        VALID_LOCATION.longitude,
+        latitude,
+        longitude
+    );
+    return distance <= VALID_LOCATION.radius;
+};
 
 export const createAbsenTapin = async (req, res) => {
-    const photo = req.file; // Menggunakan multer untuk upload file
-    const tapin = moment().tz('Asia/Jakarta').format(); // Menggunakan waktu saat ini untuk tap in
-  
-    if (!photo) {
-      return res.status(400).json({ message: "Photo is required" });
-    }
-  
-    try {
-      const user = await UserModel.findByPk(req.userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-        
-      }
-  
-      /* console.log("Photo URL:", photo.path); // Log URL dari Cloudinary */
-      
-      const newAbsen = await AbsenModel.create({
-        userId: req.userId,
-        photo: photo.path, // Menyimpan URL dari Cloudinary
-        tapin,
-        tapout: null,
-      });
+    const photo = req.file; // Using multer for file upload
+    const tapin = moment().tz('Asia/Jakarta').format(); // Current time for tap in
+    const { latitude, longitude } = req.body; // Get location from request body
 
-      console.log(newAbsen);
-  
-      // Format tapin dan updatedAt sebelum dikirimkan sebagai respons
-      const formattedAbsen = {
-        id: newAbsen.id,
-        userId: newAbsen.userId,
-        photo: newAbsen.photo,
-        tapin: moment(newAbsen.tapin).tz('Asia/Jakarta').format(), // Format tapin dalam zona waktu Jakarta
-        tapout: newAbsen.tapout ? moment(newAbsen.tapout).tz('Asia/Jakarta').format() : null, // Format tapout jika tidak null dalam zona waktu Jakarta
-        createdAt: moment(newAbsen.createdAt).tz('Asia/Jakarta').format(), // Format createdAt dalam zona waktu Jakarta
-        updatedAt: moment(newAbsen.updatedAt).tz('Asia/Jakarta').format(), // Format updatedAt dalam zona waktu Jakarta
-      };
-  
-      res.status(201).json({ message: "Tap in successful", data: formattedAbsen });
-    } catch (error) {
-      res.status(500).json({ message: "Error creating tap in record", error: error.message });
+    if (!photo) {
+        return res.status(400).json({ message: "Photo is required" });
     }
-  };
-  
-  export const createAbsenTapout = async (req, res) => {
-    const tapout = moment().tz('Asia/Jakarta').format(); // Menggunakan waktu saat ini untuk tap out
-  
+
+    // Check if location is provided and validate it
+    if (latitude === undefined || longitude === undefined) {
+        return res.status(400).json({ message: "Location data is required" });
+    }
+
+    if (!isWithinLocation(parseFloat(latitude), parseFloat(longitude))) {
+        return res.status(400).json({ message: "Your location is outside the allowed area for attendance" });
+    }
+
     try {
-      const absen = await AbsenModel.findOne({
-        where: {
-          userId: req.userId,
-          tapout: null, // Mencari record tap in yang belum tap out
-        },
-      });
-  
-      if (!absen) {
-        return res.status(404).json({ message: "Tap in record not found or already tapped out" });
-      }
-  
-      absen.tapout = tapout;
-      await absen.save();
-  
-      // Format tapin dan tapout sebelum dikirimkan sebagai respons
-      const formattedAbsen = {
-        id: absen.id,
-        userId: absen.userId,
-        tapin: moment(absen.tapin).tz('Asia/Jakarta').format(), // Format tapin dalam zona waktu Jakarta
-        tapout: moment(absen.tapout).tz('Asia/Jakarta').format(), // Format tapout dalam zona waktu Jakarta
-        createdAt: moment(absen.createdAt).tz('Asia/Jakarta').format(), // Format createdAt dalam zona waktu Jakarta
-        updatedAt: moment(absen.updatedAt).tz('Asia/Jakarta').format(), // Format updatedAt dalam zona waktu Jakarta
-      };
-  
-      res.status(201).json({ message: "Tap Out successful", data: formattedAbsen });
+        const user = await UserModel.findByPk(req.userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Check if the user has already tapped in today
+        const startOfDay = moment().startOf('day').toDate();
+        const endOfDay = moment().endOf('day').toDate();
+
+        const existingAbsen = await AbsenModel.findOne({
+            where: {
+                userId: req.userId,
+                tapin: {
+                    [Op.between]: [startOfDay, endOfDay]
+                }
+            }
+        });
+
+        if (existingAbsen) {
+            return res.status(400).json({ message: "You can only tap in once per day" });
+        }
+
+        // Create a new attendance record
+        const newAbsen = await AbsenModel.create({
+            userId: req.userId,
+            photo: photo.path, // Store URL from Cloudinary
+            tapin,
+            tapout: null,
+            latitudeTapIn: latitude,
+            longitudeTapIn: longitude
+        });
+
+        // Format tapin and other dates before sending response
+        const formattedAbsen = {
+            id: newAbsen.id,
+            userId: newAbsen.userId,
+            photo: newAbsen.photo,
+            tapin: moment(newAbsen.tapin).tz('Asia/Jakarta').format(), // Format tapin in Jakarta timezone
+            tapout: newAbsen.tapout ? moment(newAbsen.tapout).tz('Asia/Jakarta').format() : null, // Format tapout if not null
+            latitude: latitude,
+            longitude: longitude,
+            createdAt: moment(newAbsen.createdAt).tz('Asia/Jakarta').format(), // Format createdAt
+            updatedAt: moment(newAbsen.updatedAt).tz('Asia/Jakarta').format() // Format updatedAt
+        };
+
+        res.status(201).json({ message: "Tap in successful", data: formattedAbsen });
     } catch (error) {
-      res.status(500).json({ message: "Error creating tap out record", error: error.message });
+        res.status(500).json({ message: "Error creating tap in record", error: error.message });
     }
-  };
+};
+  
+export const createAbsenTapout = async (req, res) => {
+    const tapout = moment().tz('Asia/Jakarta').format(); // Current time for tap out
+    const { latitude, longitude } = req.body; // Get location from request body
+
+    // Check if location is provided and validate it
+    if (latitude === undefined || longitude === undefined) {
+        return res.status(400).json({ message: "Location data is required" });
+    }
+
+    if (!isWithinLocation(parseFloat(latitude), parseFloat(longitude))) {
+        return res.status(400).json({ message: "Your location is outside the allowed area for attendance" });
+    }
+
+    // Check if the user has already tapped out today
+    const startOfDay = moment().startOf('day').toDate();
+    const endOfDay = moment().endOf('day').toDate();
+
+    const existingAbsen = await AbsenModel.findOne({
+        where: {
+            userId: req.userId,
+            tapout: {
+                [Op.between]: [startOfDay, endOfDay]
+            }
+        }
+    });
+
+    if (existingAbsen) {
+        return res.status(400).json({ message: "You can only tap out once per day" });
+    }
+    
+    try {
+        // Find the tap-in record that has not been tapped out
+        const absen = await AbsenModel.findOne({
+            where: {
+                userId: req.userId,
+                tapout: null, // Find records where tap out is not set
+                tapin: {
+                    [Op.between]: [startOfDay, endOfDay] // Ensure the tap-in is on the same day
+                }
+            }
+        });
+
+        if (!absen) {
+            return res.status(404).json({ message: "Tap in record not found or already tapped out" });
+        }
+
+        // Update the tap out record
+        absen.tapout = tapout;
+        absen.latitudeTapOut = latitude;
+        absen.longitudeTapOut = longitude;
+        await absen.save();
+
+        // Format tapin and tapout before sending response
+        const formattedAbsen = {
+            id: absen.id,
+            userId: absen.userId,
+            tapin: moment(absen.tapin).tz('Asia/Jakarta').format(), // Format tapin in Jakarta timezone
+            tapout: moment(absen.tapout).tz('Asia/Jakarta').format(), // Format tapout in Jakarta timezone
+            latitude: absen.latitudeTapOut,
+            longitude: absen.longitudeTapOut,
+            createdAt: moment(absen.createdAt).tz('Asia/Jakarta').format(), // Format createdAt in Jakarta timezone
+            updatedAt: moment(absen.updatedAt).tz('Asia/Jakarta').format() // Format updatedAt in Jakarta timezone
+        };
+
+        res.status(201).json({ message: "Tap Out successful", data: formattedAbsen });
+    } catch (error) {
+        res.status(500).json({ message: "Error creating tap out record", error: error.message });
+    }
+};
 
 export const updateAbsen = async (req, res) => {
 

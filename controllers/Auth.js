@@ -20,7 +20,8 @@ export const Login = async (req, res) => {
     const division = user.division;
     const position = user.position;
     const role = user.role;
-    res.status(200).json({msg: "Login success", uuid, name, email, username, division, position, role});
+    const urlprofile = user.urlprofile;
+    res.status(200).json({msg: "Login success", uuid, name, email, username, division, position, role, urlprofile});
 }
 
 export const Me = async (req, res) => {
@@ -31,7 +32,7 @@ export const Me = async (req, res) => {
 
     try {
         const user = await User.findOne({
-            attributes: ['uuid', 'name', 'username', 'email', 'division', 'position', 'role'],
+            attributes: ['uuid', 'name', 'username', 'email', 'division', 'position', 'role', 'urlprofile'],
             where: {
                 uuid: req.session.userId
             }
