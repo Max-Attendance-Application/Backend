@@ -3,6 +3,7 @@ import cors from "cors";
 import session from "express-session";
 import dotenv from "dotenv";
 import db from "./config/Database.js"  
+import { Sequelize } from "sequelize";
 import SequelizeStore from "connect-session-sequelize";
 import UserRoute from "./routes/UserRoute.js";
 import AbsenRoute from "./routes/AbsenRoute.js";
@@ -24,19 +25,45 @@ const store = new sessionStore({
     checkExpirationInterval: 120 * 60 * 1000
 });
 
-/*  // IIFE untuk memeriksa koneksi database dan sinkronisasi model
+  // IIFE untuk memeriksa koneksi database dan sinkronisasi model
+// Function to check if a table exists
+const tableExists = async (tableName) => {
+    const result = await db.query(
+        `SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = '${tableName}'
+        );`,
+        { type: Sequelize.QueryTypes.SELECT }
+    );
+    return result[0].exists;
+};
+
+// Immediately Invoked Function Expression (IIFE) to handle database operations
 (async function() {
     try {
-        await db.authenticate();  // Cek koneksi ke database
+        await db.authenticate();  // Check connection to the database
         console.log('Database connected...');
-        await db.sync().then(() => {
+
+        // Check if tables exist
+        const usersTableExists = await tableExists('users');
+        const absenModelTableExists = await tableExists('AbsenModel');
+        const hkaeTableExists = await tableExists('HKAE');
+        const adminTableExists = await tableExists('Admin');
+
+        if (!usersTableExists || !absenModelTableExists || !hkaeTableExists || !adminTableExists) {
+            // If any table does not exist, sync the database
+            await db.sync();
+            console.log('Database synced...');
             populateHKAE(); // Populate HKAE table on server start
-          });  // Sinkronisasi model dengan database
-        console.log('Database synced...');
+        } else {
+            console.log('All required tables already exist.');
+        }
     } catch (error) {
-        console.error('Unable to connect to the database:', error);
+        console.error('Unable to connect to the database or sync tables:', error);
     }
-})();  */
+})();
 
 app.use(session({
     secret: process.env.SESS_SECRET,

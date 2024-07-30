@@ -7,6 +7,7 @@ import cloudinary from 'cloudinary';
 import { uploadSingleProfileimg } from '../middleware/uploadMiddleware.js';
 import multer from "multer";
 import crypto from 'crypto';
+import { populateHKAE } from "../utils/populateHKAE.js";
 
 export const getUser =  async (req, res) => {
     try {
@@ -133,6 +134,7 @@ export const uploadProfileImagev2 = async (req, res) => {
       ...req.user, // Spread user data passed from createUserv2
       urlprofile: urlprofile
     });
+    await populateHKAE();
 
     res.status(201).json({ msg: "Registration successful" });
   } catch (error) {
