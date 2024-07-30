@@ -24,7 +24,7 @@ const store = new sessionStore({
     checkExpirationInterval: 120 * 60 * 1000
 });
 
- // IIFE untuk memeriksa koneksi database dan sinkronisasi model
+/*  // IIFE untuk memeriksa koneksi database dan sinkronisasi model
 (async function() {
     try {
         await db.authenticate();  // Cek koneksi ke database
@@ -36,7 +36,7 @@ const store = new sessionStore({
     } catch (error) {
         console.error('Unable to connect to the database:', error);
     }
-})(); 
+})();  */
 
 app.use(session({
     secret: process.env.SESS_SECRET,
