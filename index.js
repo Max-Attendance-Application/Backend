@@ -9,6 +9,8 @@ import AbsenRoute from "./routes/AbsenRoute.js";
 import AuthRoute from "./routes/AuthRoute.js";
 import { uploadSingle } from "./middleware/uploadMiddleware.js";
 import { createAbsenTapin } from "./controllers/absen.js";
+import { populateHKAE } from "./utils/populateHKAE.js";
+//Model
 
 dotenv.config();
 
@@ -22,17 +24,19 @@ const store = new sessionStore({
     checkExpirationInterval: 120 * 60 * 1000
 });
 
-/* // IIFE untuk memeriksa koneksi database dan sinkronisasi model
+ // IIFE untuk memeriksa koneksi database dan sinkronisasi model
 (async function() {
     try {
         await db.authenticate();  // Cek koneksi ke database
         console.log('Database connected...');
-        await db.sync();  // Sinkronisasi model dengan database
+        await db.sync().then(() => {
+            populateHKAE(); // Populate HKAE table on server start
+          });  // Sinkronisasi model dengan database
         console.log('Database synced...');
     } catch (error) {
         console.error('Unable to connect to the database:', error);
     }
-})(); */
+})(); 
 
 app.use(session({
     secret: process.env.SESS_SECRET,
