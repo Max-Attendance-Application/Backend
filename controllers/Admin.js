@@ -2,6 +2,7 @@ import AdminModel from '../models/AdminModel.js';
 import HKAEModel from '../models/HKAEModel.js'; // Import the HKAE model
 import { updateHKAE } from '../utils/cronJob.js';
 import moment from 'moment';
+import { Op } from "sequelize";
 
 export const createAdminRecord = async (req, res) => {
     const { Tahun, Bulan, HKA, Jumlah, TanggalHariLibur } = req.body;
@@ -56,3 +57,126 @@ export const createAdminRecord = async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 };
+
+export const getAllAdminRecords = async (req, res) => {
+    try {
+        // Fetch and sort Admin records by Bulan and Tahun in descending order
+        const records = await AdminModel.findAll({
+            order: [
+                ['Tahun', 'DESC'],
+                ['Bulan', 'DESC']
+            ]
+        });
+
+        res.status(200).json(records);
+    } catch (error) {
+        console.error('Error fetching Admin records:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+};
+
+// Function to get month name from index
+const getMonthName = (index) => {
+    const months = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return months[index];
+};
+
+// Function to get month index from month name
+const getMonthIndex = (monthName) => {
+    const months = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return months.indexOf(monthName);
+};
+
+// API Endpoint to get Admin records by date range
+export const getAdminRecordsByDateRange = async (req, res) => {
+    const { from, to } = req.body;
+
+    if (!from || !to) {
+        return res.status(400).json({ message: 'Both "from" and "to" dates are required.' });
+    }
+
+    // Parse the "from" and "to" dates
+    const fromDate = moment(from, 'YYYY-MM');
+    const toDate = moment(to, 'YYYY-MM');
+
+    if (!fromDate.isValid() || !toDate.isValid()) {
+        return res.status(400).json({ message: 'Invalid date format. Use YYYY-MM.' });
+    }
+
+    // Extract years and months
+    const fromYear = fromDate.year();
+    const fromMonthIndex = fromDate.month(); // 0-based index for months
+
+    const toYear = toDate.year();
+    const toMonthIndex = toDate.month(); // 0-based index for months
+
+    try {
+        // Find Admin records within the specified range
+        const adminRecords = await AdminModel.findAll({
+            where: {
+                [Op.or]: [
+                    // Records in the starting year and month range
+                    {
+                        [Op.and]: [
+                            { Tahun: fromYear },
+                            { Bulan: { [Op.gte]: getMonthName(fromMonthIndex) } }
+                        ]
+                    },
+                    // Records in the ending year and month range
+                    {
+                        [Op.and]: [
+                            { Tahun: toYear },
+                            { Bulan: { [Op.lte]: getMonthName(toMonthIndex) } }
+                        ]
+                    },
+                    // Records between the starting and ending years
+                    {
+                        [Op.and]: [
+                            { Tahun: { [Op.gt]: fromYear } },
+                            { Tahun: { [Op.lt]: toYear } }
+                        ]
+                    }
+                ]
+            }
+        });
+
+        // Filter out records to ensure exact match for the range
+        const filteredRecords = adminRecords.filter(record => {
+            const recordYear = record.Tahun;
+            const recordMonthIndex = getMonthIndex(record.Bulan);
+
+            if (recordYear === fromYear && recordYear === toYear) {
+                // Between the same year range
+                return recordMonthIndex >= fromMonthIndex && recordMonthIndex <= toMonthIndex;
+            }
+            if (recordYear === fromYear) {
+                // From year to end
+                return recordMonthIndex >= fromMonthIndex;
+            }
+            if (recordYear === toYear) {
+                // To year from start
+                return recordMonthIndex <= toMonthIndex;
+            }
+            // Between years
+            return recordYear > fromYear && recordYear < toYear;
+        });
+
+        // Return the results
+        if (filteredRecords.length > 0) {
+            res.status(200).json(filteredRecords);
+        } else {
+            res.status(404).json({ message: 'No records found for the given date range.' });
+        }
+    } catch (error) {
+        console.error('Error fetching Admin records:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+};
+
+
