@@ -2,16 +2,15 @@ import moment from 'moment';
 import UserModel from '../models/UserModel.js';
 import HKAEModel from '../models/HKAEModel.js';
 import AdminModel from '../models/AdminModel.js';
-
 export const populateHKAE = async () => {
     const now = moment();
-    const currentYear = now.year();
+    const currentYear = now.year().toString(); // Convert year to string
     const currentMonth = now.format('MMMM');
 
     try {
         const adminRecord = await AdminModel.findOne({
             where: {
-                Tahun: currentYear,
+                Tahun: currentYear, // Ensure Tahun is compared as a string
                 Bulan: currentMonth
             }
         });

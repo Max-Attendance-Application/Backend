@@ -8,7 +8,7 @@ const AdminModel = db.define('Admin', {
       autoIncrement: true
     },
     Tahun: {
-      type: Sequelize.DataTypes.INTEGER,
+      type: Sequelize.DataTypes.STRING,
       allowNull: false
     },
     Bulan: {
@@ -24,7 +24,7 @@ const AdminModel = db.define('Admin', {
       allowNull: true
     },
     TanggalHariLibur: {
-      type: Sequelize.DataTypes.DATE,
+      type: Sequelize.DataTypes.ARRAY(DataTypes.INTEGER),
       allowNull: true
     }
 },{

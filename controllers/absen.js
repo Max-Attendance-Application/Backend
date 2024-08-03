@@ -1,4 +1,5 @@
 import moment from 'moment-timezone';
+import HKAEModel from '../models/HKAEModel.js';
 import AbsenModel from "../models/AbsenModel.js";
 import UserModel from "../models/UserModel.js";
 import { Op } from "sequelize";
@@ -212,7 +213,6 @@ export const createAbsenTapin = async (req, res) => {
         return res.status(400).json({ message: "Photo is required" });
     }
 
-    // Check if location is provided and validate it
     if (latitude === undefined || longitude === undefined) {
         return res.status(400).json({ message: "Location data is required" });
     }
@@ -227,7 +227,6 @@ export const createAbsenTapin = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // Check if the user has already tapped in today
         const startOfDay = moment().startOf('day').toDate();
         const endOfDay = moment().endOf('day').toDate();
 
@@ -244,27 +243,43 @@ export const createAbsenTapin = async (req, res) => {
             return res.status(400).json({ message: "You can only tap in once per day" });
         }
 
-        // Create a new attendance record
+        const hkaeRecord = await HKAEModel.findOne({ where: { userId: req.userId } });
+
+        if (!hkaeRecord) {
+            return res.status(404).json({ message: "HKAE record not found for user" });
+        }
+
+        const lastTapin = await AbsenModel.findOne({
+            where: { userId: req.userId },
+            order: [['tapin', 'DESC']]
+        });
+
+        const hkeIncrement = lastTapin && moment(tapin).diff(lastTapin.tapin, 'hours') >= 24 ? hkaeRecord.HKE + 1 : hkaeRecord.HKE;
+
+        await HKAEModel.update(
+            { HKE: hkeIncrement },
+            { where: { userId: req.userId } }
+        );
+
         const newAbsen = await AbsenModel.create({
             userId: req.userId,
-            photo: photo.path, // Store URL from Cloudinary
+            photo: photo.path,
             tapin,
             tapout: null,
             latitudeTapIn: latitude,
             longitudeTapIn: longitude
         });
 
-        // Format tapin and other dates before sending response
         const formattedAbsen = {
             id: newAbsen.id,
             userId: newAbsen.userId,
             photo: newAbsen.photo,
-            tapin: moment(newAbsen.tapin).tz('Asia/Jakarta').format(), // Format tapin in Jakarta timezone
-            tapout: newAbsen.tapout ? moment(newAbsen.tapout).tz('Asia/Jakarta').format() : null, // Format tapout if not null
+            tapin: moment(newAbsen.tapin).tz('Asia/Jakarta').format(),
+            tapout: newAbsen.tapout ? moment(newAbsen.tapout).tz('Asia/Jakarta').format() : null,
             latitude: latitude,
             longitude: longitude,
-            createdAt: moment(newAbsen.createdAt).tz('Asia/Jakarta').format(), // Format createdAt
-            updatedAt: moment(newAbsen.updatedAt).tz('Asia/Jakarta').format() // Format updatedAt
+            createdAt: moment(newAbsen.createdAt).tz('Asia/Jakarta').format(),
+            updatedAt: moment(newAbsen.updatedAt).tz('Asia/Jakarta').format()
         };
 
         res.status(201).json({ message: "Tap in successful", data: formattedAbsen });

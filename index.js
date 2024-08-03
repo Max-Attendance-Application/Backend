@@ -3,11 +3,13 @@ import cors from "cors";
 import session from "express-session";
 import dotenv from "dotenv";
 import db from "./config/Database.js"  
+import "./utils/cronJob.js"
 import { Sequelize } from "sequelize";
 import SequelizeStore from "connect-session-sequelize";
 import UserRoute from "./routes/UserRoute.js";
 import AbsenRoute from "./routes/AbsenRoute.js";
 import AuthRoute from "./routes/AuthRoute.js";
+import AdminRoute from "./routes/AdminRoute.js";
 import { uploadSingle } from "./middleware/uploadMiddleware.js";
 import { createAbsenTapin } from "./controllers/absen.js";
 import { populateHKAE } from "./utils/populateHKAE.js";
@@ -57,9 +59,7 @@ const tableExists = async (tableName) => {
             await db.sync();
             console.log('Database synced...');
             populateHKAE(); // Populate HKAE table on server start
-        } else {
-            console.log('All required tables already exist.');
-        }
+        } 
     } catch (error) {
         console.error('Unable to connect to the database or sync tables:', error);
     }
@@ -87,6 +87,7 @@ app.use(express.json());
 app.use(UserRoute);
 app.use(AbsenRoute);
 app.use(AuthRoute);
+app.use(AdminRoute);
 
 /*  store.sync();  */
 
