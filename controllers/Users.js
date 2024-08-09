@@ -417,3 +417,60 @@ export const resetPassword = async (req, res) => {
   }
 };
 
+// Update Status from 'aktif' to 'suspend' by ID
+export const SuspendUser = async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+      // Find the user by ID
+      const user = await UserModel.findOne({
+          where: { id: userId }
+      });
+
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Check if the current status is 'aktif'
+      if (user.Status === 'aktif') {
+          // Update status to 'suspend'
+          user.Status = 'suspend';
+          await user.save();
+          res.status(200).json({ message: 'Status updated to suspend' });
+      } else {
+          res.status(400).json({ message: 'Status is not "aktif", so cannot be updated to "suspend"' });
+      }
+  } catch (error) {
+      console.error('Error updating user status:', error);
+      res.status(500).json({ message: 'Internal Server Error', error });
+  }
+};
+
+export const AktifUser = async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+      // Find the user by ID
+      const user = await UserModel.findOne({
+          where: { id: userId }
+      });
+
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Check if the current status is 'aktif'
+      if (user.Status === 'suspend') {
+          // Update status to 'suspend'
+          user.Status = 'aktif';
+          await user.save();
+          res.status(200).json({ message: 'Status updated to aktif' });
+      } else {
+          res.status(400).json({ message: 'Status is not "suspend", so cannot be updated to "aktif"' });
+      }
+  } catch (error) {
+      console.error('Error updating user status:', error);
+      res.status(500).json({ message: 'Internal Server Error', error });
+  }
+};
+

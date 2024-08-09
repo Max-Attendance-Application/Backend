@@ -19,6 +19,10 @@ const AdminModel = db.define('Admin', {
       type: Sequelize.DataTypes.INTEGER,
       allowNull: false
     },
+    HKE: {
+      type: Sequelize.DataTypes.INTEGER,
+      allowNull: true
+    },
     Jumlah: {
       type: Sequelize.DataTypes.INTEGER,
       allowNull: true

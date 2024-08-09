@@ -3,6 +3,10 @@ import cors from "cors";
 import session from "express-session";
 import dotenv from "dotenv";
 import db from "./config/Database.js"  
+import Users from "./models/UserModel.js";
+import AbsenModel from "./models/AbsenModel.js";
+import HKAE from "./models/HKAEModel.js";
+import Admin from "./models/AdminModel.js";
 import "./utils/cronJob.js"
 import { Sequelize } from "sequelize";
 import SequelizeStore from "connect-session-sequelize";
@@ -54,12 +58,14 @@ const tableExists = async (tableName) => {
         const hkaeTableExists = await tableExists('HKAE');
         const adminTableExists = await tableExists('Admin');
 
-        if (!usersTableExists || !absenModelTableExists || !hkaeTableExists || !adminTableExists) {
-            // If any table does not exist, sync the database
-            await db.sync();
+        // Sync models
+        await Users.sync({ alter: true });
+        await AbsenModel.sync({ alter: true });
+        await HKAE.sync({ alter: true });
+        await Admin.sync({ alter: true });
             console.log('Database synced...');
             populateHKAE(); // Populate HKAE table on server start
-        } 
+        
     } catch (error) {
         console.error('Unable to connect to the database or sync tables:', error);
     }

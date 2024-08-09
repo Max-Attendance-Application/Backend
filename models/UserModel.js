@@ -94,6 +94,11 @@ const Users = db.define('users', {
         type: Sequelize.DataTypes.DATE,
         allowNull: true,
     },
+    Status: {
+        type: Sequelize.DataTypes.STRING,
+        defaultValue: 'aktif', // Set default value to 'aktif'
+        allowNull: true,
+    },
 
 }, {
     freezeTableName: true

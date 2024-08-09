@@ -1,5 +1,6 @@
 import AdminModel from '../models/AdminModel.js';
 import HKAEModel from '../models/HKAEModel.js'; // Import the HKAE model
+import UserModel from '../models/UserModel.js'; // Import the
 import { updateHKAE } from '../utils/cronJob.js';
 import moment from 'moment';
 import { Op } from "sequelize";
@@ -180,3 +181,42 @@ export const getAdminRecordsByDateRange = async (req, res) => {
 };
 
 
+export const getStatistics = async (req, res) => {
+    try {
+        // Count total users
+        const totalUsers = await UserModel.count();
+
+        // Count active users
+        const activeUsers = await UserModel.count({
+            where: { Status: 'aktif' }
+        });
+
+        // Count suspended users
+        const suspendedUsers = await UserModel.count({
+            where: { Status: 'suspend' }
+        });
+
+        // Get latest Admin record
+        const adminRecord = await AdminModel.findOne({
+            order: [['Tahun', 'DESC'], ['Bulan', 'DESC']] // Get the most recent record
+        });
+
+        // Extract values or set defaults if record not found
+        const hka = adminRecord ? adminRecord.HKA : null;
+        const hke = adminRecord ? adminRecord.HKE : null;
+        const totalHolidays = adminRecord ? adminRecord.Jumlah : 0;
+
+        // Return the statistics
+        res.status(200).json({
+            'Total Entry': totalUsers,
+            'Employee Active': activeUsers,
+            'Employee Suspend': suspendedUsers,
+            'HKA': hka,
+            'HKE': hke,
+            'Hari Libur': totalHolidays
+        });
+    } catch (error) {
+        console.error('Error fetching statistics:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+};

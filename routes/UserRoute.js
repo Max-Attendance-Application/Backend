@@ -10,7 +10,9 @@ import {
     handleFileUpload,
     deleteUserById,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    SuspendUser,
+    AktifUser
 } from "../controllers/Users.js";
 import {verifyUser, adminOnly, } from "../middleware/AuthUser.js";
 import { uploadSingleProfileimg } from '../middleware/uploadMiddleware.js';
@@ -23,6 +25,8 @@ router.post('/users', createUser); //no Photo dan TIDAK DI PAKAI RUTENYA!
 router.post('/createusersv2', handleFileUpload, createUserv2, uploadProfileImagev2); //withphoto DIPAKAI RUTENYA
 router.post('/uploadProfileImage', verifyUser, handleFileUpload,uploadProfileImage, uploadSingleProfileimg,  ); //INI BUAT EMPLOYEE UPDATE FOTONYA AJA
 router.patch('/users/:id', verifyUser, handleFileUpload, updateUser, uploadProfileImagev2);
+router.patch('/suspenduser/:id', verifyUser, adminOnly, SuspendUser);
+router.patch('/aktifuser/:id', verifyUser, adminOnly, AktifUser);
 router.delete('/users/:id', verifyUser, adminOnly, deleteUserById);
 
 router.post('/auth/forgot-password', forgotPassword);
